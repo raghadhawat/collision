@@ -7,31 +7,35 @@ public class MassPoint
     public float Mass;
     public bool isFixed = false;
     public Transform visual;
+    private Vector3 force;
 
-    private Vector3 accumulatedForce;
+    public bool isOuter = false;
 
-    public MassPoint(Vector3 position, float mass)
+
+    public MassPoint(Vector3 offset, Vector3 position, float mass)
     {
         Position = position;
         Velocity = Vector3.zero;
         Mass = mass;
+        force = Vector3.zero;
     }
 
-    public void ApplyForce(Vector3 force)
+    public void ApplyForce(Vector3 f)
     {
-        accumulatedForce += force;
+        force += f;
     }
 
     public void Integrate(float dt)
     {
         if (isFixed) return;
 
-        Vector3 acceleration = accumulatedForce / Mass;
+        Vector3 acceleration = force / Mass;
         Velocity += acceleration * dt;
         Position += Velocity * dt;
-        accumulatedForce = Vector3.zero;
 
         if (visual != null)
             visual.position = Position;
+
+        force = Vector3.zero;
     }
 }

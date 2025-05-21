@@ -4,12 +4,12 @@ using UnityEngine;
 public class SoftBodyRubberBall : MonoBehaviour
 {
     [Header("Ball Settings")]
-    public float radius = 1f;
-    public int resolution = 5;
+    public float radius = 2f;
+    public int resolution = 20;
     public float pointMass = 1f;
     public float stiffness = 800f;
     public float damping = 10f;
-    
+
     public Vector3 gravity = new Vector3(0, -9.81f, 0);
 
     private List<MassPoint> points = new List<MassPoint>();
@@ -19,9 +19,17 @@ public class SoftBodyRubberBall : MonoBehaviour
 
     void Start()
     {
+        // Automatically set the radius based on the GameObject's scale (assuming uniform scaling)
+        radius = transform.localScale.x / 2f;
+        radius -= radius / 35f;
+
+        // Optional: Reset scale to 1 so visual points match the size better
+        // transform.localScale = Vector3.one;
+
         CreateSolidBall();
         ConnectSprings();
     }
+
 
     void FixedUpdate()
     {
@@ -64,42 +72,60 @@ public class SoftBodyRubberBall : MonoBehaviour
         {
             hasTouchedGround = true;
             Debug.Log("✅ الكرة لامست الأرض لأول مرة: تم تقوية الروابط.");
+            stiffness *= 2f;  // تقوية الزنبركات بعد التصادم
+            damping *= 2f;
+
+            foreach (var s in springs)
+            {
+                s.UpdateStiffness(stiffness, damping);
+            }
         }
     }
 
     void CreateSolidBall()
     {
+        bool IsOuterPoint(Vector3 offset, float tolerance)
+        {
+            return Mathf.Abs(offset.magnitude - radius) < tolerance;
+        }
+
         float step = (radius * 2) / resolution;
         Vector3 center = transform.position;
 
-        for (int x = 0; x < resolution; x++)
+        for (float x = -radius; x <= radius; x += step)
         {
-            for (int y = 0; y < resolution; y++)
+            for (float y = -radius; y <= radius; y += step)
             {
-                for (int z = 0; z < resolution; z++)
+                for (float z = -radius; z <= radius; z += step)
                 {
-                    Vector3 offset = new Vector3(
-                        x * step - radius,
-                        y * step - radius,
-                        z * step - radius);
-
-                    if (offset.magnitude <= radius)
+                    float distanceSqr = x * x + y * y + z * z;
+                    if (distanceSqr <= radius * radius)
                     {
+                        // Vector3 worldPos = center + new Vector3(x, y, z);
+                        Vector3 offset = new Vector3(x, y, z); // already relative
                         Vector3 worldPos = center + offset;
                         GameObject pointObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                         pointObj.transform.position = worldPos;
-                        pointObj.transform.localScale = Vector3.one * 0.1f;
+                        pointObj.transform.localScale = Vector3.one * step * 0.6f;
                         Destroy(pointObj.GetComponent<Collider>());
                         pointObj.transform.SetParent(transform);
 
-                        MassPoint mp = new MassPoint(worldPos, pointMass);
+                        bool isOuter = IsOuterPoint(offset, step * 0.7f);
+                        MassPoint mp = new MassPoint(offset, worldPos, pointMass);
                         mp.visual = pointObj.transform;
+                        mp.isOuter = isOuter;
+                        if (isOuter && offset.y < -radius * 0.8f)
+                        {
+                            // تثبيت بعض النقاط السفلية
+                            mp.isFixed = true;
+                        }
                         points.Add(mp);
                     }
                 }
             }
         }
     }
+
 
     void ConnectSprings()
     {
